@@ -515,15 +515,23 @@
         // A. Gửi lệnh Bật/Tắt thủ công
         function publishRelay() {
             if (!client.isConnected()) { alert("Chưa kết nối MQTT!"); return; }
-            if (manualToggle.disabled) return;
 
-            manualToggle.disabled = true;
-            manualStatusText.textContent = "Trạng thái: Đang gửi...";
+            // Lưu ý: Không cần khóa nút (disabled) nữa để trải nghiệm mượt mà hơn
+            manualStatusText.textContent = "Đang gửi lệnh...";
 
             const newState = manualToggle.checked ? "ON" : "OFF";
             const message = new Paho.MQTT.Message(newState);
-            message.destinationName = TOPIC_RELAY_SET(currentRelay); // Gửi đến topic của ổ đang chọn
+            message.destinationName = TOPIC_RELAY_SET(currentRelay);
             client.send(message);
+
+            // --- SỬA LỖI: CẬP NHẬT TRẠNG THÁI NGAY LẬP TỨC ---
+            // Không chờ phản hồi từ ESP32, cập nhật giao diện ngay cho người dùng thấy
+            relayStates[currentRelay].mode = "MANUAL";       // Chuyển về chế độ Thủ Công ngay
+            relayStates[currentRelay].state = newState;      // Cập nhật trạng thái ON/OFF ngay
+            relayStates[currentRelay].scheduleActive = false; // Tắt trạng thái hẹn giờ nếu có
+
+            updateUI(); // Vẽ lại giao diện ngay lập tức
+            // -------------------------------------------------
         }
 
         // B. Gửi lịch hẹn giờ
