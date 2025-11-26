@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều Khiển Ổ Cắm v8 (2 Kênh)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+    <style>
+        :root {
+            --color-blue: #007bff;
+            --color-green: #28a745;
+            --color-red: #dc3545;
+            --color-grey: #6c757d;
+            --color-light-grey: #ccc;
+            --color-bg: #f0f2f5;
+            --color-card: #ffffff;
+            --color-text: #1c1e21;
+            --color-text-light: #555;
+            --border-radius: 12px;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 380px;
+            background-color: var(--color-card);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 24px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--color-blue);
+            margin-top: 0;
+            margin-bottom: 24px;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .mode-display {
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--color-text-light);
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        /* --- MỚI: Tab 2 Kênh --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+
+        .tab-nav button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-grey);
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab-nav button.active {
+            color: var(--color-blue);
+            border-bottom-color: var(--color-blue);
+        }
+
+        /* ------------------------ */
+
+        .manual-section {
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .manual-section h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .form-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        .form-group label,
+        .form-group span {
+            font-weight: 500;
+            color: var(--color-text-light);
+        }
+
+        /* --- ĐÃ SỬA: Giới hạn chiều rộng input để fix lỗi trên mobile --- */
+        .form-group input[type="time"],
+        .form-group input[type="number"],
+        .form-group select {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 16px;
+            width: 120px;
+            /* Cố định chiều rộng */
+            max-width: 45%;
+            /* Không vượt quá 45% chiều ngang */
+            text-align: center;
+            /* Căn giữa nội dung */
+        }
+
+        /* --------------------------------------------------------------- */
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            display: none;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        #manualToggle:checked+.slider {
+            background-color: var(--color-green);
+        }
+
+        #manualToggle:not(:checked)+.slider {
+            background-color: var(--color-red);
+        }
+
+        #scheduleActiveToggle:checked+.slider {
+            background-color: var(--color-blue);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        input:disabled+.slider {
+            background-color: #eee;
+            cursor: not-allowed;
+        }
+
+        input:disabled+.slider:before {
+            background-color: #ccc;
+        }
+
+        .collapsible {
+            background-color: #f8f9fa;
+            color: var(--color-text-light);
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: opacity 0.3s ease;
+        }
+
+        .collapsible.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            background-color: #e9ecef;
+        }
+
+        .collapsible:after {
+            content: '+';
+            font-size: 20px;
+            color: var(--color-blue);
+        }
+
+        .collapsible.active:after {
+            content: "−";
+        }
+
+        .content {
+            padding: 0 18px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #fdfdfd;
+            border: 1px solid #f0f0f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background-color: var(--color-blue);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 15px 0;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-group button {
+            flex: 1;
+        }
+
+        .btn-on {
+            background-color: var(--color-green);
+        }
+
+        .btn-off {
+            background-color: var(--color-red);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Ổ Cắm Thông Minh</h1>
+        <div id="status" class="status disconnected">Đang kết nối...</div>
+
+        <div class="tab-nav">
+            <button id="tab1" class="active" onclick="selectRelay(1)">Ổ Cắm 1</button>
+            <button id="tab2" onclick="selectRelay(2)">Ổ Cắm 2</button>
+        </div>
+
+        <div id="modeText" class="mode-display">Chế độ: Thủ công</div>
+
+        <div class="manual-section">
+            <h2>Bật Tắt Thủ Công</h2>
+            <div class="form-group">
+                <span id="manualStatusText">Trạng thái: ĐANG TẮT</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="manualToggle" onchange="publishRelay()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <button class="collapsible" id="scheduleToggler">Hẹn Giờ Tự Động</button>
+        <div class="content">
+            <div class="form-group">
+                <label for="startTime">Giờ Bật:</label>
+                <input type="time" id="startTime">
+            </div>
+            <div class="form-group">
+                <label for="stopTime">Giờ Tắt:</label>
+                <input type="time" id="stopTime">
+            </div>
+            <div class="form-group">
+                <span>Kích hoạt Hẹn Giờ:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="scheduleActiveToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button onclick="sendSchedule()" class="btn-submit">Áp Dụng Hẹn Giờ</button>
+        </div>
+
+        <button class="collapsible" id="countdownToggler">Đếm Ngược</button>
+        <div class="content">
+            <div class="form-group">
+                <label for="countdownTime">Thời gian:</label>
+                <input type="number" id="countdownTime" min="1" value="30">
+                <select id="countdownUnit">
+                    <option value="60">Phút</option>
+                    <option value="1">Giây</option>
+                    <option value="3600">Giờ</option>
+                </select>
+            </div>
+            <div class="btn-group">
+                <button class="btn-submit btn-on" onclick="startCountdown('ON')">BẬT sau</button>
+                <button class="btn-submit btn-off" onclick="startCountdown('OFF')">TẮT sau</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CÀI ĐẶT MQTT ---
+        const BROKER_HOST = "broker.hivemq.com";
+        const BROKER_PORT = 8884;
+        const CLIENT_ID = "WebApp_v8_" + parseInt(Math.random() * 100000);
+
+        // --- MỚI: Quản lý trạng thái 2 ổ cắm ---
+        let currentRelay = 1; // Ổ cắm đang chọn (1 hoặc 2)
+        // Lưu trạng thái của cả 2 ổ cắm
+        const relayStates = {
+            1: { state: "OFF", mode: "MANUAL", scheduleActive: false },
+            2: { state: "OFF", mode: "MANUAL", scheduleActive: false }
+        };
+
+        // Các Topic (phải giống code ESP32)
+        // Giờ sẽ dùng ${currentRelay} để chèn số 1 hoặc 2
+        const TOPIC_RELAY_SET = (relay) => `odien/relay/${relay}/set`;
+        const TOPIC_RELAY_STATUS = (relay) => `odien/relay/${relay}/status`;
+        const TOPIC_SCHEDULE_SET = (relay) => `odien/schedule/${relay}/set`;
+        const TOPIC_MODE_STATUS = (relay) => `odien/mode/${relay}/status`;
+        const TOPIC_COUNTDOWN_SET = (relay) => `odien/countdown/${relay}/set`;
+
+        // Đối tượng HTML
+        const statusDiv = document.getElementById('status');
+        const modeText = document.getElementById('modeText');
+        const manualToggle = document.getElementById('manualToggle');
+        const manualStatusText = document.getElementById('manualStatusText');
+        const scheduleToggler = document.getElementById('scheduleToggler');
+        const countdownToggler = document.getElementById('countdownToggler');
+        const scheduleActiveToggle = document.getElementById('scheduleActiveToggle');
+        const startTimeEl = document.getElementById('startTime');
+        const stopTimeEl = document.getElementById('stopTime');
+        const countdownTimeEl = document.getElementById('countdownTime');
+        const countdownUnitEl = document.getElementById('countdownUnit');
+        const tab1 = document.getElementById('tab1');
+        const tab2 = document.getElementById('tab2');
+
+        const client = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, CLIENT_ID);
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+
+        // --- 2. KẾT NỐI ---
+        client.connect({
+            onSuccess: onConnect,
+            onFailure: onFailure,
+            useSSL: true
+        });
+
+        function onConnect() {
+            console.log("Đã kết nối MQTT Broker!");
+            statusDiv.textContent = "Đã kết nối";
+            statusDiv.className = "status connected";
+
+            // Đăng ký nghe TẤT CẢ các topic (cho cả 2 ổ)
+            for (let i = 1; i <= 2; i++) {
+                client.subscribe(TOPIC_RELAY_STATUS(i));
+                client.subscribe(TOPIC_MODE_STATUS(i));
+            }
+        }
+
+        function onFailure(responseObject) {
+            console.log("Kết nối thất bại: " + responseObject.errorMessage);
+            statusDiv.textContent = "Kết nối thất bại";
+            statusDiv.className = "status disconnected";
+        }
+
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.log("Mất kết nối: " + responseObject.errorMessage);
+                statusDiv.textContent = "Mất kết nối";
+                statusDiv.className = "status disconnected";
+                setTimeout(() => client.connect({ onSuccess: onConnect, onFailure: onFailure, useSSL: true }), 2000);
+            }
+        }
+
+        // --- 3. NHẬN TIN NHẮN TỪ ESP32 ---
+        function onMessageArrived(message) {
+            console.log("Nhận: " + message.destinationName + " -> " + message.payloadString);
+
+            // Xác định tin nhắn này là của ổ cắm nào?
+            const topic = message.destinationName;
+            let relayNum = 0;
+            if (topic.includes("relay/1")) relayNum = 1;
+            if (topic.includes("relay/2")) relayNum = 2;
+            if (relayNum === 0) return; // Topic không xác định
+
+            // A. Cập nhật trạng thái Bật/Tắt
+            if (topic === TOPIC_RELAY_STATUS(relayNum)) {
+                relayStates[relayNum].state = message.payloadString;
+            }
+
+            // B. Cập nhật trạng thái Chế độ
+            if (topic === TOPIC_MODE_STATUS(relayNum)) {
+                relayStates[relayNum].mode = message.payloadString;
+                relayStates[relayNum].scheduleActive = (message.payloadString === "SCHEDULE");
+            }
+
+            // Nếu tin nhắn này là của ổ cắm đang chọn, cập nhật UI
+            if (relayNum === currentRelay) {
+                updateUI();
+            }
+        }
+
+        // --- MỚI: Hàm cập nhật toàn bộ Giao Diện ---
+        function updateUI() {
+            const r = currentRelay; // 1 hoặc 2
+            const state = relayStates[r].state;
+            const mode = relayStates[r].mode;
+
+            // Cập nhật nút gạt
+            manualToggle.disabled = false;
+            manualToggle.checked = (state === "ON");
+            manualStatusText.textContent = (state === "ON") ? "Trạng thái: ĐANG BẬT" : "Trạng thái: ĐANG TẮT";
+
+            // Cập nhật text Chế độ
+            switch (mode) {
+                case "SCHEDULE":
+                    modeText.textContent = "Chế độ: Hẹn Giờ";
+                    scheduleActiveToggle.checked = true;
+                    manualToggle.disabled = true;
+                    countdownToggler.classList.add("disabled");
+                    scheduleToggler.classList.remove("disabled");
+                    break;
+                case "COUNTDOWN":
+                    modeText.textContent = "Chế độ: Đang Đếm Ngược";
+                    scheduleActiveToggle.checked = false;
+                    manualToggle.disabled = true;
+                    scheduleToggler.classList.add("disabled");
+                    countdownToggler.classList.remove("disabled");
+                    break;
+                case "MANUAL":
+                default:
+                    modeText.textContent = "Chế độ: Thủ Công";
+                    scheduleActiveToggle.checked = false;
+                    manualToggle.disabled = false;
+                    scheduleToggler.classList.remove("disabled");
+                    countdownToggler.classList.remove("disabled");
+                    break;
+            }
+        }
+
+        // --- MỚI: Chọn ổ cắm (Tab) ---
+        function selectRelay(relayNum) {
+            currentRelay = relayNum;
+            tab1.classList.toggle('active', relayNum === 1);
+            tab2.classList.toggle('active', relayNum === 2);
+
+            // Xóa giá trị cũ
+            startTimeEl.value = "";
+            stopTimeEl.value = "";
+
+            // Cập nhật UI ngay lập tức
+            updateUI();
+        }
+
+        // --- 4. GỬI LỆNH TỪ APP (Đã cập nhật) ---
+
+        // A. Gửi lệnh Bật/Tắt thủ công
+        function publishRelay() {
+            if (!client.isConnected()) { alert("Chưa kết nối MQTT!"); return; }
+            if (manualToggle.disabled) return;
+
+            manualToggle.disabled = true;
+            manualStatusText.textContent = "Trạng thái: Đang gửi...";
+
+            const newState = manualToggle.checked ? "ON" : "OFF";
+            const message = new Paho.MQTT.Message(newState);
+            message.destinationName = TOPIC_RELAY_SET(currentRelay); // Gửi đến topic của ổ đang chọn
+            client.send(message);
+        }
+
+        // B. Gửi lịch hẹn giờ
+        function sendSchedule() {
+            if (!client.isConnected()) { alert("Chưa kết nối MQTT!"); return; }
+
+            const isActive = scheduleActiveToggle.checked;
+
+            // MỚI: Phải gửi cả relayNum
+            const scheduleData = {
+                start: startTimeEl.value || "00:00",
+                stop: stopTimeEl.value || "00:00",
+                active: isActive
+            };
+            const messagePayload = JSON.stringify(scheduleData);
+            const message = new Paho.MQTT.Message(messagePayload);
+            message.destinationName = TOPIC_SCHEDULE_SET(currentRelay); // Gửi đến topic của ổ đang chọn
+            client.send(message);
+
+            alert(`Đã gửi lịch hẹn cho Ổ Cắm ${currentRelay}!`);
+
+            // --- ĐÃ SỬA: Cập nhật UI ngay lập tức ---
+            if (isActive) {
+                relayStates[currentRelay].mode = "SCHEDULE";
+                relayStates[currentRelay].scheduleActive = true;
+            } else {
+                relayStates[currentRelay].mode = "MANUAL";
+            }
+            updateUI();
+            // ----------------------------------------
+
+            document.getElementById('scheduleToggler').click(); // Tự động gập lại
+        }
+
+        // C. Gửi lệnh Đếm Ngược
+        function startCountdown(targetState) { // "ON" hoặc "OFF"
+            if (!client.isConnected()) { alert("Chưa kết nối MQTT!"); return; }
+
+            const time = parseInt(countdownTimeEl.value);
+            const unit = parseInt(countdownUnitEl.value);
+            const duration_s = time * unit;
+
+            const countdownData = {
+                targetState: targetState, // "ON" (Bật sau...) hoặc "OFF" (Tắt sau...)
+                duration: duration_s     // Tổng số giây
+            };
+
+            const messagePayload = JSON.stringify(countdownData);
+            const message = new Paho.MQTT.Message(messagePayload);
+            message.destinationName = TOPIC_COUNTDOWN_SET(currentRelay); // Gửi đến topic của ổ đang chọn
+            client.send(message);
+
+            alert(`Đã bắt đầu đếm ngược cho Ổ Cắm ${currentRelay}!`);
+
+            // --- ĐÃ SỬA: Cập nhật UI ngay lập tức ---
+            relayStates[currentRelay].mode = "COUNTDOWN";
+            updateUI();
+            // ----------------------------------------
+
+            document.getElementById('countdownToggler').click(); // Tự động gập lại
+        }
+
+        // --- 5. LOGIC GIAO DIỆN (Nút gập - không đổi) ---
+        var coll = document.getElementsByClassName("collapsible");
+        for (let i = 0; i < coll.length; i++) {
+            coll[i].addEventListener("click", function () {
+                this.classList.toggle("active");
+                var content = this.nextElementSibling;
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = null;
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
