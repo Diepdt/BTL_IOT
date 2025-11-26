@@ -458,24 +458,29 @@
             const state = relayStates[r].state;
             const mode = relayStates[r].mode;
 
-            // Cập nhật nút gạt
-            manualToggle.disabled = false;
+            // Cập nhật trạng thái nút gạt (ON/OFF)
             manualToggle.checked = (state === "ON");
             manualStatusText.textContent = (state === "ON") ? "Trạng thái: ĐANG BẬT" : "Trạng thái: ĐANG TẮT";
 
-            // Cập nhật text Chế độ
+            // --- SỬA LỖI: LUÔN LUÔN CHO PHÉP BẤM NÚT ---
+            manualToggle.disabled = false;
+            // -------------------------------------------
+
+            // Cập nhật text Chế độ và giao diện phụ
             switch (mode) {
                 case "SCHEDULE":
                     modeText.textContent = "Chế độ: Hẹn Giờ";
                     scheduleActiveToggle.checked = true;
-                    manualToggle.disabled = true;
+                    // manualToggle.disabled = true; // <-- ĐÃ XÓA DÒNG NÀY
+
                     countdownToggler.classList.add("disabled");
                     scheduleToggler.classList.remove("disabled");
                     break;
                 case "COUNTDOWN":
                     modeText.textContent = "Chế độ: Đang Đếm Ngược";
                     scheduleActiveToggle.checked = false;
-                    manualToggle.disabled = true;
+                    // manualToggle.disabled = true; // <-- ĐÃ XÓA DÒNG NÀY
+
                     scheduleToggler.classList.add("disabled");
                     countdownToggler.classList.remove("disabled");
                     break;
@@ -483,7 +488,8 @@
                 default:
                     modeText.textContent = "Chế độ: Thủ Công";
                     scheduleActiveToggle.checked = false;
-                    manualToggle.disabled = false;
+                    // manualToggle.disabled = false; // Mặc định ở trên đã mở rồi
+
                     scheduleToggler.classList.remove("disabled");
                     countdownToggler.classList.remove("disabled");
                     break;
